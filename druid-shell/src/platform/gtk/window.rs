@@ -1208,6 +1208,7 @@ fn get_mouse_pointer_type(device_tool: Option<gdk::DeviceTool>) -> PointerType{
     if let Some(tool_type) = device_tool.map(|t| t.get_tool_type()) {
         match tool_type {
             gdk::DeviceToolType::Pen => PointerType::Stylus,
+            gdk::DeviceToolType::Eraser => PointerType::Eraser,
             gdk::DeviceToolType::Mouse => PointerType::Mouse,
             _ => PointerType::Unknown,
         }

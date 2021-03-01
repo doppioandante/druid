@@ -25,6 +25,7 @@ pub enum PointerType {
     None,
     Mouse,
     Stylus,
+    Eraser,
     Unknown,
 }
 
