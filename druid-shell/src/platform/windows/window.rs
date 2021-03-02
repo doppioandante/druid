@@ -65,7 +65,7 @@ use crate::common_util::IdleCallback;
 use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};
 use crate::error::Error as ShellError;
 use crate::keyboard::{KbKey, KeyState};
-use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent};
+use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent, PointerType};
 use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
 use crate::window;
@@ -963,6 +963,7 @@ impl WndProc for MyWndProc {
                         focus: false,
                         button: MouseButton::None,
                         wheel_delta,
+                        pointer_type: PointerType::Mouse,
                     };
                     s.handler.wheel(&event);
                     true
@@ -1012,6 +1013,7 @@ impl WndProc for MyWndProc {
                         focus: false,
                         button: MouseButton::None,
                         wheel_delta: Vec2::ZERO,
+                        pointer_type: PointerType::Mouse,
                     };
                     s.handler.mouse_move(&event);
                 });
@@ -1092,6 +1094,7 @@ impl WndProc for MyWndProc {
                             focus: false,
                             button,
                             wheel_delta: Vec2::ZERO,
+                            pointer_type: PointerType::Mouse,
                         };
                         if count > 0 {
                             s.enter_mouse_capture(hwnd, button);
