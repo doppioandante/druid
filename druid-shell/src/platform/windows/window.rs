@@ -65,7 +65,7 @@ use crate::common_util::IdleCallback;
 use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};
 use crate::error::Error as ShellError;
 use crate::keyboard::{KbKey, KeyState};
-use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent, PointerType};
+use crate::pointer::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent, PointerEvent, PointerType, PointerId};
 use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
 use crate::window;
@@ -291,6 +291,76 @@ fn get_buttons(wparam: WPARAM) -> MouseButtons {
         buttons.insert(MouseButton::X2);
     }
     buttons
+}
+
+fn get_pointer_type(ptype: POINTER_INPUT_TYPE) -> PointerType {
+    match ptype {
+        PT_POINTER => PointerType::None,
+        PT_TOUCH => PointerType::Touch,
+        PT_PEN => PointerType::Stylus,
+        PT_MOUSE => PointerType::Mouse,
+        PT_TOUCHPAD => PointerType::Mouse,
+        _ => PointerType::Unknown,
+    }
+}
+
+fn get_pointer_event(hwnd: HWND, s: &WndState, scale: Scale, wparam: usize) -> Option<PointerEvent> {
+    let pointer_id  = LOWORD(wparam as u32) as u32;
+    let mut info: POINTER_INFO = unsafe { mem::uninitialized() };
+    unsafe {
+        if GetPointerInfo(pointer_id, &mut info) == FALSE {
+            log::warn!(
+                "GetPointerInfo failed: {}",
+                Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+            );
+            return None;
+        }
+
+        if ScreenToClient(hwnd, &mut info.ptPixelLocation) == FALSE {
+            log::warn!(
+                "ScreenToClient failed: {}",
+                Error::Hr(HRESULT_FROM_WIN32(GetLastError()))
+            );
+            return None;
+        }
+    }
+
+    let pos = Point::new(
+        info.ptPixelLocation.x as f64,
+        info.ptPixelLocation.y as f64
+    ).to_dp(scale);
+
+    let mods = s.keyboard_state.get_modifiers();
+    let buttons = get_buttons(wparam);
+    let button = MouseButton::None;
+
+    let pointer_type = get_pointer_type(info.pointerType);
+    let mut pressure = 0.0;
+
+    match pointer_type {
+        PointerType::Stylus => {
+            let mut pen_info: POINTER_PEN_INFO = unsafe { mem::uninitialized() };
+            unsafe {
+                GetPointerPenInfo(info.pointerId, &mut pen_info);
+            }
+            pressure = f64::from(pen_info.pressure) / 1024f64;
+        },
+        _ => {}
+    };
+    Some(PointerEvent {
+        id: PointerId::Value(crate::platform::pointer::PointerId {
+            pointerId: info.pointerId
+        }),
+        pos,
+        button,
+        mods,
+        buttons,
+        focus: false,
+        pointer_type: get_pointer_type(info.pointerType),
+        count: 0,
+        wheel_delta: Vec2::ZERO,
+        pressure,
+    })
 }
 
 fn is_point_in_client_rect(hwnd: HWND, x: i32, y: i32) -> bool {
@@ -924,6 +994,81 @@ impl WndProc for MyWndProc {
                     }
                 }
             }
+            WM_POINTERENTER => {
+                self.with_wnd_state(|s| {
+                    let opt_event = get_pointer_event(hwnd, &s, self.scale(), wparam);
+                    opt_event.map(|event: PointerEvent| {
+                        s.handler.pointer_enter(&event);
+                        true
+                    })
+                    .unwrap_or(false)
+                })
+                .and_then(|value| if value {
+                    Some(0)
+                } else {
+                    None
+                })
+            }
+            WM_POINTERLEAVE => {
+                self.with_wnd_state(|s| {
+                    let opt_event = get_pointer_event(hwnd, &s, self.scale(), wparam);
+                    opt_event.map(|event: PointerEvent| {
+                        s.handler.pointer_leave(&event);
+                        true
+                    })
+                    .unwrap_or(false)
+                })
+                .and_then(|value| if value {
+                    Some(0)
+                } else {
+                    None
+                })
+            }
+            WM_POINTERDOWN => {
+                self.with_wnd_state(|s| {
+                    let opt_event = get_pointer_event(hwnd, &s, self.scale(), wparam);
+                    opt_event.map(|event: PointerEvent| {
+                        s.handler.pointer_down(&event);
+                        true
+                    })
+                    .unwrap_or(false)
+                })
+                .and_then(|value| if value {
+                    Some(0)
+                } else {
+                    None
+                })
+            }
+            WM_POINTERUP => {
+                self.with_wnd_state(|s| {
+                    let opt_event = get_pointer_event(hwnd, &s, self.scale(), wparam);
+                    opt_event.map(|event: PointerEvent| {
+                        s.handler.pointer_up(&event);
+                        true
+                    })
+                    .unwrap_or(false)
+                })
+                .and_then(|value| if value {
+                    Some(0)
+                } else {
+                    None
+                })
+            }
+            WM_POINTERUPDATE => {
+                self.with_wnd_state(|s| {
+                    let opt_event = get_pointer_event(hwnd, &s, self.scale(), wparam);
+                    opt_event.map(|event: PointerEvent| {
+                        s.handler.pointer_move(&event);
+                        true
+                    })
+                    .unwrap_or(false)
+                })
+                .and_then(|value| if value {
+                    Some(0)
+                } else {
+                    None
+                })
+            }
             WM_MOUSEWHEEL | WM_MOUSEHWHEEL => {
                 // TODO: apply mouse sensitivity based on
                 // SPI_GETWHEELSCROLLLINES setting.
@@ -963,7 +1108,6 @@ impl WndProc for MyWndProc {
                         focus: false,
                         button: MouseButton::None,
                         wheel_delta,
-                        pointer_type: PointerType::Mouse,
                     };
                     s.handler.wheel(&event);
                     true
@@ -1013,7 +1157,6 @@ impl WndProc for MyWndProc {
                         focus: false,
                         button: MouseButton::None,
                         wheel_delta: Vec2::ZERO,
-                        pointer_type: PointerType::Mouse,
                     };
                     s.handler.mouse_move(&event);
                 });
@@ -1094,7 +1237,6 @@ impl WndProc for MyWndProc {
                             focus: false,
                             button,
                             wheel_delta: Vec2::ZERO,
-                            pointer_type: PointerType::Mouse,
                         };
                         if count > 0 {
                             s.enter_mouse_capture(hwnd, button);

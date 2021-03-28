@@ -14,11 +14,11 @@
 
 //! Events.
 
-use crate::kurbo::{Rect, Shape, Size, Vec2};
+use crate::kurbo::{Rect, Shape, Size, Vec2, Point};
 
 use druid_shell::{Clipboard, KeyEvent, TimerToken};
 
-use crate::mouse::MouseEvent;
+use crate::pointer::{PointerEvent, MouseEvent};
 use crate::{Command, Notification, WidgetId};
 
 /// An event, propagated downwards during event flow.
@@ -168,6 +168,18 @@ pub enum Event {
     ///
     /// [`WidgetPod`]: struct.WidgetPod.html
     Internal(InternalEvent),
+
+    PointerEnter(PointerEvent),
+    PointerLeave(PointerEvent),
+    PointerDown(PointerEvent),
+    PointerUp(PointerEvent),
+    PointerMove(PointerEvent),
+
+    GestureZoom {
+        zoom: f64,
+        center: Point,
+    },
+    GesturePan(Vec2),
 }
 
 /// Internal events used by druid inside [`WidgetPod`].
@@ -344,6 +356,7 @@ impl Event {
                     None
                 }
             }
+            // TODO: PointerEvent
             _ => Some(self.clone()),
         }
     }
@@ -366,7 +379,14 @@ impl Event {
             | Event::KeyDown(_)
             | Event::KeyUp(_)
             | Event::Paste(_)
-            | Event::Zoom(_) => false,
+            | Event::Zoom(_)
+            | Event::PointerEnter(_)
+            | Event::PointerLeave(_)
+            | Event::PointerUp(_)
+            | Event::PointerDown(_)
+            | Event::PointerMove(_)
+            | Event::GesturePan(_)
+            | Event::GestureZoom{ .. } => false,
         }
     }
 }

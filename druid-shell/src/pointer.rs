@@ -19,6 +19,39 @@ use crate::piet::ImageBuf;
 use crate::platform;
 use crate::Modifiers;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum PointerType {
+    None,
+    Mouse,
+    Touch,
+    Stylus,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PointerId {
+    None,
+    Value(platform::pointer::PointerId)
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PointerEvent {
+    pub id: PointerId,
+    pub pos: Point,
+    pub mods: Modifiers,
+    pub focus: bool,
+    pub pointer_type: PointerType,
+
+    // mouse related
+    pub buttons: MouseButtons,
+    pub count: u8,
+    pub button: MouseButton,
+    pub wheel_delta: Vec2,
+
+    // stylus related
+    pub pressure: f64,
+}
+
 /// Information about the mouse event.
 ///
 /// Every mouse event can have a new position. There is no guarantee of
