@@ -757,6 +757,106 @@ impl<T: Data, W: Widget<T>> WidgetPod<T, W> {
                 } else {
                     false
                 }
+            },
+            Event::PointerEnter(pointer_event) => {
+                WidgetPod::set_hot_state(
+                    &mut self.inner,
+                    &mut self.state,
+                    ctx.state,
+                    rect,
+                    Some(pointer_event.pos),
+                    data,
+                    env,
+                );
+                if had_active || self.state.is_hot {
+                    let mut pointer_event = pointer_event.clone();
+                    pointer_event.pos -= rect.origin().to_vec2();
+                    modified_event = Some(Event::PointerEnter(pointer_event));
+                    true
+                } else {
+                    false
+                }
+            },
+            Event::PointerUp(pointer_event) => {
+                WidgetPod::set_hot_state(
+                    &mut self.inner,
+                    &mut self.state,
+                    ctx.state,
+                    rect,
+                    Some(pointer_event.pos),
+                    data,
+                    env,
+                );
+                if had_active || self.state.is_hot {
+                    let mut pointer_event = pointer_event.clone();
+                    pointer_event.pos -= rect.origin().to_vec2();
+                    modified_event = Some(Event::PointerUp(pointer_event));
+                    true
+                } else {
+                    false
+                }
+            }
+            Event::PointerDown(pointer_event) => {
+                WidgetPod::set_hot_state(
+                    &mut self.inner,
+                    &mut self.state,
+                    ctx.state,
+                    rect,
+                    Some(pointer_event.pos),
+                    data,
+                    env,
+                );
+                if had_active || self.state.is_hot {
+                    let mut pointer_event = pointer_event.clone();
+                    pointer_event.pos -= rect.origin().to_vec2();
+                    modified_event = Some(Event::PointerDown(pointer_event));
+                    true
+                } else {
+                    false
+                }
+            }
+            Event::PointerMove(pointer_event) => {
+                let hot_changed = WidgetPod::set_hot_state(
+                    &mut self.inner,
+                    &mut self.state,
+                    ctx.state,
+                    rect,
+                    Some(pointer_event.pos),
+                    data,
+                    env,
+                );
+                // PointerMove is recursed even if the widget is not active and not hot,
+                // but was hot previously. This is to allow the widget to respond to the movement,
+                // e.g. drag functionality where the widget wants to follow the mouse.
+                if had_active || self.state.is_hot || hot_changed {
+                    let mut pointer_event = pointer_event.clone();
+                    pointer_event.pos -= rect.origin().to_vec2();
+                    modified_event = Some(Event::PointerMove(pointer_event));
+                    true
+                } else {
+                    false
+                }
+            },
+            Event::PointerLeave(_) => {
+                // TODO
+                false
+            },
+            Event::GestureZoom { center, zoom } => {
+                // TODO
+                if had_active || self.state.is_hot {
+                    let new_center = *center - rect.origin().to_vec2();
+                    modified_event = Some(Event::GestureZoom {
+                        zoom: *zoom,
+                        center: new_center
+                    });
+                    true
+                } else {
+                    false
+                }
+            }
+            Event::GesturePan(_) => {
+                // TODO
+                had_active || self.state.is_hot
             }
             Event::AnimFrame(_) => {
                 let r = self.state.request_anim;

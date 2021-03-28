@@ -160,9 +160,10 @@ mod dialog;
 mod env;
 mod event;
 mod ext_event;
+pub mod gesture;
 mod localization;
 mod menu;
-mod mouse;
+mod pointer;
 pub mod scroll_component;
 #[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
@@ -186,7 +187,7 @@ pub use shell::keyboard_types;
 pub use shell::{
     Application, Clipboard, ClipboardFormat, Code, Cursor, CursorDesc, Error as PlatformError,
     FileInfo, FileSpec, FormatId, HotKey, KbKey, KeyEvent, Location, Modifiers, Monitor,
-    MouseButton, MouseButtons, PointerType, RawMods, Region, Scalable, Scale, Screen, SysMods, TimerToken,
+    MouseButton, MouseButtons, PointerType, PointerId, RawMods, Region, Scalable, Scale, Screen, SysMods, TimerToken,
     WindowHandle, WindowState,
 };
 
@@ -204,7 +205,7 @@ pub use ext_event::{ExtEventError, ExtEventSink};
 pub use lens::{Lens, LensExt};
 pub use localization::LocalizedString;
 pub use menu::{sys as platform_menus, ContextMenu, MenuDesc, MenuItem};
-pub use mouse::MouseEvent;
+pub use pointer::{MouseEvent, PointerEvent, PointerEventController, PointerEventPolicy};
 pub use text::{ArcStr, FontDescriptor, TextLayout};
 pub use util::Handled;
 pub use widget::{Widget, WidgetExt, WidgetId};

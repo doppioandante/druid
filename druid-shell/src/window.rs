@@ -22,9 +22,9 @@ use crate::common_util::Counter;
 use crate::dialog::{FileDialogOptions, FileInfo};
 use crate::error::Error;
 use crate::keyboard::KeyEvent;
-use crate::kurbo::{Point, Rect, Size};
+use crate::kurbo::{Point, Rect, Size, Vec2};
 use crate::menu::Menu;
-use crate::mouse::{Cursor, CursorDesc, MouseEvent};
+use crate::pointer::{Cursor, CursorDesc, PointerEvent, MouseEvent};
 use crate::platform::window as platform;
 use crate::region::Region;
 use crate::scale::Scale;
@@ -521,6 +521,27 @@ pub trait WinHandler {
 
     /// Called when the mouse cursor has left the application window
     fn mouse_leave(&mut self) {}
+
+    #[allow(unused_variables)]
+    fn pointer_enter(&mut self, event: &PointerEvent) {}
+
+    #[allow(unused_variables)]
+    fn pointer_leave(&mut self, event: &PointerEvent) {}
+
+    #[allow(unused_variables)]
+    fn pointer_down(&mut self, event: &PointerEvent) {}
+
+    #[allow(unused_variables)]
+    fn pointer_up(&mut self, event: &PointerEvent) {}
+
+    #[allow(unused_variables)]
+    fn pointer_move(&mut self, event: &PointerEvent) {}
+
+    #[allow(unused_variables)]
+    fn gesture_zoom(&mut self, zoom_delta: f64, center: Point) {}
+
+    #[allow(unused_variables)]
+    fn gesture_pan(&mut self, pan: Vec2) {}
 
     /// Called on timer event.
     ///

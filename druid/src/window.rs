@@ -180,6 +180,7 @@ impl<T: Data> Window<T> {
             Event::MouseDown(e) | Event::MouseUp(e) | Event::MouseMove(e) | Event::Wheel(e) => {
                 self.last_mouse_pos = Some(e.pos)
             }
+            // TODO: PointerEvent
             Event::Internal(InternalEvent::MouseLeave) => self.last_mouse_pos = None,
             _ => (),
         }

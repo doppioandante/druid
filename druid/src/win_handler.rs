@@ -19,10 +19,10 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 
-use crate::kurbo::Size;
+use crate::kurbo::{Point, Size, Vec2};
 use crate::piet::Piet;
 use crate::shell::{
-    Application, FileDialogToken, FileInfo, IdleToken, MouseEvent, Region, Scale, WinHandler,
+    Application, FileDialogToken, FileInfo, IdleToken, MouseEvent, PointerEvent, Region, Scale, WinHandler,
     WindowHandle,
 };
 
@@ -830,6 +830,44 @@ impl<T: Data> WinHandler for DruidHandler<T> {
     fn mouse_leave(&mut self) {
         self.app_state
             .do_window_event(Event::Internal(InternalEvent::MouseLeave), self.window_id);
+    }
+
+    fn pointer_enter(&mut self, event: &PointerEvent) {
+        let event = Event::PointerEnter(event.clone().into());
+        self.app_state.do_window_event(event, self.window_id);
+    }
+
+    fn pointer_leave(&mut self, event: &PointerEvent) {
+        let event = Event::PointerLeave(event.clone().into());
+        self.app_state.do_window_event(event, self.window_id);
+    }
+
+    fn pointer_down(&mut self, event: &PointerEvent) {
+        let event = Event::PointerDown(event.clone().into());
+        self.app_state.do_window_event(event, self.window_id);
+    }
+
+    fn pointer_up(&mut self, event: &PointerEvent) {
+        let event = Event::PointerUp(event.clone().into());
+        self.app_state.do_window_event(event, self.window_id);
+    }
+
+    fn pointer_move(&mut self, event: &PointerEvent) {
+        let event = Event::PointerMove(event.clone().into());
+        self.app_state.do_window_event(event, self.window_id);
+    }
+
+    fn gesture_zoom(&mut self, zoom: f64, center: Point) {
+        let event = Event::GestureZoom{
+            zoom,
+            center,
+        };
+        self.app_state.do_window_event(event, self.window_id);
+    }
+
+    fn gesture_pan(&mut self, pan: Vec2) {
+        let event = Event::GesturePan(pan);
+        self.app_state.do_window_event(event, self.window_id);
     }
 
     fn key_down(&mut self, event: KeyEvent) -> bool {
