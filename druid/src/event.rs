@@ -169,16 +169,32 @@ pub enum Event {
     /// [`WidgetPod`]: struct.WidgetPod.html
     Internal(InternalEvent),
 
+    /// Generated when a new pointer appears
+    ///
+    /// This event is sent on a platform-specific fashion
     PointerEnter(PointerEvent),
+
+    /// Generated when a new pointer leaves
+    ///
+    /// This event is sent on a platform-specific fashion
     PointerLeave(PointerEvent),
+
+    /// Generated when a pointer enters the pressed down state
     PointerDown(PointerEvent),
+
+    /// Generated when a pointer leaves the pressed down state
     PointerUp(PointerEvent),
+
+    /// Generted when the coordinates of a pointer event are updated
     PointerMove(PointerEvent),
 
+    /// Gesture associated to zooming
     GestureZoom {
         zoom: f64,
         center: Point,
     },
+
+    /// Gesture associated to panning
     GesturePan(Vec2),
 }
 
