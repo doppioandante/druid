@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! GTK-based platform support
+use gdk::EventSequence;
 
-pub mod application;
-pub mod clipboard;
-pub mod dialog;
-pub mod error;
-pub mod keycodes;
-pub mod menu;
-pub mod pointer;
-pub mod screen;
-pub mod util;
-pub mod window;
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PointerId {
+    pub(crate) event_sequence: EventSequence
+}
+

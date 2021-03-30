@@ -14,5 +14,5 @@
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PointerId {
-    pub pointerId: u32,
+    pub(crate) pointerId: u32,
 }

@@ -27,7 +27,7 @@ use std::time::Instant;
 
 use anyhow::anyhow;
 use cairo::Surface;
-use gdk::{EventKey, EventMask, ModifierType, ScrollDirection, WindowExt, WindowTypeHint};
+use gdk::{EventKey, EventMask, EventTouch, ModifierType, ScrollDirection, WindowExt, WindowTypeHint};
 use gio::ApplicationExt;
 use gtk::prelude::*;
 use gtk::{AccelGroup, ApplicationWindow, DrawingArea, SettingsExt};
@@ -39,7 +39,7 @@ use crate::common_util::{ClickCounter, IdleCallback};
 use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};
 use crate::error::Error as ShellError;
 use crate::keyboard::{KbKey, KeyEvent, KeyState, Modifiers};
-use crate::mouse::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent, PointerType};
+use crate::pointer::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent, PointerEvent, PointerId, PointerType};
 use crate::piet::ImageFormat;
 use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
@@ -304,7 +304,8 @@ impl WindowBuilder {
                 | EventMask::KEY_RELEASE_MASK
                 | EventMask::SCROLL_MASK
                 | EventMask::SMOOTH_SCROLL_MASK
-                | EventMask::FOCUS_CHANGE_MASK,
+                | EventMask::FOCUS_CHANGE_MASK
+                | EventMask::TOUCH_MASK,
         );
 
         win_state.drawing_area.set_can_focus(true);
@@ -437,7 +438,6 @@ impl WindowBuilder {
                                     focus: false,
                                     button,
                                     wheel_delta: Vec2::ZERO,
-                                    pointer_type: get_mouse_pointer_type(event.get_device_tool()),
                                 },
                             );
                         }
@@ -463,7 +463,6 @@ impl WindowBuilder {
                                 focus: false,
                                 button,
                                 wheel_delta: Vec2::ZERO,
-                                pointer_type: get_mouse_pointer_type(event.get_device_tool()),
                             },
                         );
                     }
@@ -486,7 +485,6 @@ impl WindowBuilder {
                         focus: false,
                         button: MouseButton::None,
                         wheel_delta: Vec2::ZERO,
-                        pointer_type: get_mouse_pointer_type(motion.get_device_tool()),
                     };
 
                     state.with_handler(|h| h.mouse_move(&mouse_event));
@@ -509,7 +507,6 @@ impl WindowBuilder {
                         focus: false,
                         button: MouseButton::None,
                         wheel_delta: Vec2::ZERO,
-                        pointer_type: get_mouse_pointer_type(crossing.get_device_tool()),
                     };
 
                     state.with_handler(|h| h.mouse_move(&mouse_event));
@@ -565,7 +562,6 @@ impl WindowBuilder {
                             focus: false,
                             button: MouseButton::None,
                             wheel_delta,
-                            pointer_type: get_mouse_pointer_type(scroll.get_device_tool()),
                         };
 
                         state.with_handler(|h| h.wheel(&mouse_event));
@@ -574,6 +570,45 @@ impl WindowBuilder {
 
                 Inhibit(true)
             }));
+
+        win_state.drawing_area.connect_touch_event(clone!(handle => move |_widget, event| {
+            if let Some(event) = event.downcast_ref::<EventTouch>() {
+                if let Some(state) = handle.state.upgrade() {
+                    state.with_handler(|handler| {
+                        let pos: Point = event.get_position().into();
+                        let scale = state.scale.get();
+                        let pointer_id = event.get_event_sequence().map(|sq_id| {
+                            PointerId::Value(
+                                crate::platform::pointer::PointerId {
+                                    event_sequence: sq_id
+                                }
+                            )
+                        }).unwrap_or(PointerId::None);
+
+                        let pointer_evt = PointerEvent {
+                            id: pointer_id,
+                            pointer_type: get_pointer_type(event.get_device_tool()),
+                            pos: pos.to_dp(scale),
+                            mods: get_modifiers(event.get_state()),
+                            focus: false,
+                            count: 0,
+                            buttons: get_mouse_buttons_from_modifiers(event.get_state()),
+                            button: MouseButton::None,
+                            pressure: 0f64,
+                            wheel_delta: Vec2::ZERO,
+                        };
+
+                        match event.get_event_type() {
+                            gdk::EventType::TouchBegin => { handler.pointer_down(&pointer_evt); }
+                            gdk::EventType::TouchEnd => { handler.pointer_up(&pointer_evt); }
+                            gdk::EventType::TouchUpdate => { handler.pointer_move(&pointer_evt); }
+                            _ => {}
+                        }
+                    });
+                }
+            }
+            Inhibit(true)
+        }));
 
         win_state
             .drawing_area
@@ -1204,11 +1239,11 @@ fn get_mouse_click_count(event_type: gdk::EventType) -> u8 {
     }
 }
 
-fn get_mouse_pointer_type(device_tool: Option<gdk::DeviceTool>) -> PointerType{
+fn get_pointer_type(device_tool: Option<gdk::DeviceTool>) -> PointerType{
     if let Some(tool_type) = device_tool.map(|t| t.get_tool_type()) {
         match tool_type {
             gdk::DeviceToolType::Pen => PointerType::Stylus,
-            gdk::DeviceToolType::Eraser => PointerType::Eraser,
+            gdk::DeviceToolType::Eraser => PointerType::Stylus,
             gdk::DeviceToolType::Mouse => PointerType::Mouse,
             _ => PointerType::Unknown,
         }
