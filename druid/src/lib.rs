@@ -205,7 +205,7 @@ pub use ext_event::{ExtEventError, ExtEventSink};
 pub use lens::{Lens, LensExt};
 pub use localization::LocalizedString;
 pub use menu::{sys as platform_menus, ContextMenu, MenuDesc, MenuItem};
-pub use pointer::{MouseEvent, PointerEvent, PointerEventController, PointerEventPolicy};
+pub use pointer::{MouseEvent, PointerEvent};
 pub use text::{ArcStr, FontDescriptor, TextLayout};
 pub use util::Handled;
 pub use widget::{Widget, WidgetExt, WidgetId};
