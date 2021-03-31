@@ -16,7 +16,7 @@
 
 use crate::ext_event::{ExtEventHost, ExtEventSink};
 use crate::kurbo::{Point, Size};
-use crate::shell::{Application, Error as PlatformError, WindowBuilder, WindowHandle, WindowLevel};
+use crate::shell::{Application, Error as PlatformError, PointerEventPolicy, WindowBuilder, WindowHandle, WindowLevel};
 use crate::widget::LabelText;
 use crate::win_handler::{AppHandler, AppState};
 use crate::window::WindowId;
@@ -47,6 +47,7 @@ pub struct WindowConfig {
     pub(crate) show_titlebar: Option<bool>,
     pub(crate) level: Option<WindowLevel>,
     pub(crate) state: Option<WindowState>,
+    pub(crate) pointer_event_policy: Option<PointerEventPolicy>,
 }
 
 /// A description of a window to be instantiated.
@@ -195,6 +196,7 @@ impl Default for WindowConfig {
             show_titlebar: None,
             level: None,
             state: None,
+            pointer_event_policy: None,
         }
     }
 }
@@ -274,6 +276,12 @@ impl WindowConfig {
         self
     }
 
+    /// Sets the [`PointerEventPolicy`] for the window
+    pub fn set_pointer_event_policy(mut self, policy: PointerEventPolicy) -> Self {
+        self.pointer_event_policy = Some(policy);
+        self
+    }
+
     /// Apply this window configuration to the passed in WindowBuilder
     pub fn apply_to_builder(&self, builder: &mut WindowBuilder) {
         if let Some(resizable) = self.resizable {
@@ -298,6 +306,9 @@ impl WindowConfig {
 
         if let Some(state) = self.state {
             builder.set_window_state(state);
+        }
+        if let Some(pointer_event_policy) = self.pointer_event_policy {
+            builder.set_pointer_event_policy(pointer_event_policy);
         }
 
         builder.set_min_size(self.min_size);
@@ -431,6 +442,12 @@ impl<T: Data> WindowDesc<T> {
     /// Set initial state for the window.
     pub fn set_window_state(mut self, state: WindowState) -> Self {
         self.config = self.config.set_window_state(state);
+        self
+    }
+
+    /// Sets the [`PointerEventPolicy`] for the window
+    pub fn set_pointer_event_policy(mut self, policy: PointerEventPolicy) -> Self {
+        self.config = self.config.set_pointer_event_policy(policy);
         self
     }
 

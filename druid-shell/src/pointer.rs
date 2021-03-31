@@ -327,3 +327,18 @@ impl std::fmt::Debug for Cursor {
         }
     }
 }
+
+pub(crate) fn mouse_to_pointer(event: &MouseEvent) -> PointerEvent {
+    PointerEvent {
+        id: PointerId::None,
+        pos: event.pos,
+        buttons: event.buttons,
+        mods: event.mods,
+        count: event.count,
+        focus: event.focus,
+        button: event.button,
+        wheel_delta: event.wheel_delta,
+        pointer_type: PointerType::Mouse,
+        pressure: 0.0,
+    }
+}

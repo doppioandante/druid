@@ -140,6 +140,22 @@ pub enum WindowState {
     RESTORED,
 }
 
+/// The policy to use when generating pointer events
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PointerEventPolicy {
+    /// Generate only events that carry a [`PointerEvent`]
+    /// [`MouseEvent`]s are never emitted
+    UsePointerApi,
+    /// Generate only events that carry a [`MouseEvent`]
+    /// Eventual touch/pointer events are carried through
+    /// [`MouseEvent`] in a platform specific fashion.
+    /// [`PointerEvent`]s are never emitted
+    UseMouseApi,
+    /// Emit both [`PointerEvent`] for touch events and
+    /// [`MouseEvent`] for mouse events
+    UseMixedApi,
+}
+
 /// A handle to a platform window object.
 #[derive(Clone, Default)]
 pub struct WindowHandle(platform::WindowHandle);
@@ -405,6 +421,11 @@ impl WindowBuilder {
     /// Sets the initial state of the window.
     pub fn set_window_state(&mut self, state: WindowState) {
         self.0.set_window_state(state);
+    }
+
+    /// Enable druid-shell to emit events that carry a [`PointerEvent`]
+    pub fn set_pointer_event_policy(&mut self, policy: PointerEventPolicy) {
+        self.0.set_pointer_event_policy(policy)
     }
 
     /// Attempt to construct the platform window.

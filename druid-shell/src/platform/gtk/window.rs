@@ -39,12 +39,12 @@ use crate::common_util::{ClickCounter, IdleCallback};
 use crate::dialog::{FileDialogOptions, FileDialogType, FileInfo};
 use crate::error::Error as ShellError;
 use crate::keyboard::{KbKey, KeyEvent, KeyState, Modifiers};
-use crate::pointer::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent, PointerEvent, PointerId, PointerType};
+use crate::pointer::{Cursor, CursorDesc, MouseButton, MouseButtons, MouseEvent, PointerEvent, PointerId, PointerType, mouse_to_pointer};
 use crate::piet::ImageFormat;
 use crate::region::Region;
 use crate::scale::{Scalable, Scale, ScaledArea};
 use crate::window;
-use crate::window::{FileDialogToken, IdleToken, TimerToken, WinHandler, WindowLevel};
+use crate::window::{FileDialogToken, IdleToken, PointerEventPolicy, TimerToken, WinHandler, WindowLevel};
 
 use super::application::Application;
 use super::dialog;
@@ -115,6 +115,7 @@ pub(crate) struct WindowBuilder {
     min_size: Option<Size>,
     resizable: bool,
     show_titlebar: bool,
+    pointer_event_policy: PointerEventPolicy,
 }
 
 #[derive(Clone)]
@@ -179,6 +180,7 @@ impl WindowBuilder {
             min_size: None,
             resizable: true,
             show_titlebar: true,
+            pointer_event_policy: PointerEventPolicy::UseMouseApi,
         }
     }
 
@@ -220,6 +222,10 @@ impl WindowBuilder {
 
     pub fn set_menu(&mut self, menu: Menu) {
         self.menu = Some(menu);
+    }
+
+    pub fn set_pointer_event_policy(&mut self, policy: PointerEventPolicy) {
+        self.pointer_event_policy = policy;
     }
 
     pub fn build(self) -> Result<WindowHandle, ShellError> {
@@ -293,7 +299,9 @@ impl WindowBuilder {
             vbox.pack_start(&menu, false, false, 0);
         }
 
-        win_state.drawing_area.set_events(
+        let pointer_event_policy = self.pointer_event_policy;
+
+        let mut gdk_event_mask =
             EventMask::EXPOSURE_MASK
                 | EventMask::POINTER_MOTION_MASK
                 | EventMask::LEAVE_NOTIFY_MASK
@@ -304,9 +312,16 @@ impl WindowBuilder {
                 | EventMask::KEY_RELEASE_MASK
                 | EventMask::SCROLL_MASK
                 | EventMask::SMOOTH_SCROLL_MASK
-                | EventMask::FOCUS_CHANGE_MASK
-                | EventMask::TOUCH_MASK,
-        );
+                | EventMask::FOCUS_CHANGE_MASK;
+
+        match pointer_event_policy {
+            PointerEventPolicy::UsePointerApi | PointerEventPolicy::UseMixedApi => {
+                gdk_event_mask |= EventMask::TOUCH_MASK
+            }
+            _ => {}
+        }
+
+        win_state.drawing_area.set_events(gdk_event_mask);
 
         win_state.drawing_area.set_can_focus(true);
         win_state.drawing_area.grab_focus();
@@ -428,18 +443,26 @@ impl WindowBuilder {
                         } else {
                             0
                         };
+                        let mouse_event = MouseEvent {
+                            pos: pos.to_dp(scale),
+                            buttons: get_mouse_buttons_from_modifiers(button_state).with(button),
+                            mods: get_modifiers(button_state),
+                            count,
+                            focus: false,
+                            button,
+                            wheel_delta: Vec2::ZERO,
+                        };
+
                         if gtk_count == 0 || gtk_count == 1 {
-                            handler.mouse_down(
-                                &MouseEvent {
-                                    pos: pos.to_dp(scale),
-                                    buttons: get_mouse_buttons_from_modifiers(button_state).with(button),
-                                    mods: get_modifiers(button_state),
-                                    count,
-                                    focus: false,
-                                    button,
-                                    wheel_delta: Vec2::ZERO,
-                                },
-                            );
+                            if pointer_event_policy == PointerEventPolicy::UsePointerApi {
+                                handler.pointer_down(
+                                    &mouse_to_pointer(&mouse_event)
+                                );
+                            } else {
+                                handler.mouse_down(
+                                    &mouse_event,
+                                );
+                            }
                         }
                     }
                 });
@@ -454,17 +477,24 @@ impl WindowBuilder {
                     if let Some(button) = get_mouse_button(event.get_button()) {
                         let scale = state.scale.get();
                         let button_state = event.get_state();
-                        handler.mouse_up(
-                            &MouseEvent {
-                                pos: Point::from(event.get_position()).to_dp(scale),
-                                buttons: get_mouse_buttons_from_modifiers(button_state).without(button),
-                                mods: get_modifiers(button_state),
-                                count: 0,
-                                focus: false,
-                                button,
-                                wheel_delta: Vec2::ZERO,
-                            },
-                        );
+
+                        let mouse_event = MouseEvent {
+                            pos: Point::from(event.get_position()).to_dp(scale),
+                            buttons: get_mouse_buttons_from_modifiers(button_state).without(button),
+                            mods: get_modifiers(button_state),
+                            count: 0,
+                            focus: false,
+                            button,
+                            wheel_delta: Vec2::ZERO,
+                        };
+
+                        if pointer_event_policy == PointerEventPolicy::UsePointerApi {
+                            handler.pointer_down(
+                                &mouse_to_pointer(&mouse_event)
+                            );
+                        } else {
+                            handler.mouse_up(&mouse_event);
+                        }
                     }
                 });
             }
@@ -487,7 +517,11 @@ impl WindowBuilder {
                         wheel_delta: Vec2::ZERO,
                     };
 
-                    state.with_handler(|h| h.mouse_move(&mouse_event));
+                    if pointer_event_policy == PointerEventPolicy::UsePointerApi {
+                        state.with_handler(|h| h.pointer_move(&mouse_to_pointer(&mouse_event)));
+                    } else {
+                        state.with_handler(|h| h.mouse_move(&mouse_event));
+                    }
                 }
 
                 Inhibit(true)
@@ -509,7 +543,11 @@ impl WindowBuilder {
                         wheel_delta: Vec2::ZERO,
                     };
 
-                    state.with_handler(|h| h.mouse_move(&mouse_event));
+                    if pointer_event_policy == PointerEventPolicy::UsePointerApi {
+                        state.with_handler(|h| h.pointer_leave(&mouse_to_pointer(&mouse_event)));
+                    } else {
+                        state.with_handler(|h| h.mouse_leave());
+                    }
                 }
 
                 Inhibit(true)
@@ -571,44 +609,47 @@ impl WindowBuilder {
                 Inhibit(true)
             }));
 
-        win_state.drawing_area.connect_touch_event(clone!(handle => move |_widget, event| {
-            if let Some(event) = event.downcast_ref::<EventTouch>() {
-                if let Some(state) = handle.state.upgrade() {
-                    state.with_handler(|handler| {
-                        let pos: Point = event.get_position().into();
-                        let scale = state.scale.get();
-                        let pointer_id = event.get_event_sequence().map(|sq_id| {
-                            PointerId::Value(
-                                crate::platform::pointer::PointerId {
-                                    event_sequence: sq_id
-                                }
-                            )
-                        }).unwrap_or(PointerId::None);
+        if pointer_event_policy == PointerEventPolicy::UseMixedApi ||
+            pointer_event_policy == PointerEventPolicy::UsePointerApi {
+            win_state.drawing_area.connect_touch_event(clone!(handle => move |_widget, event| {
+                if let Some(event) = event.downcast_ref::<EventTouch>() {
+                    if let Some(state) = handle.state.upgrade() {
+                        state.with_handler(|handler| {
+                            let pos: Point = event.get_position().into();
+                            let scale = state.scale.get();
+                            let pointer_id = event.get_event_sequence().map(|sq_id| {
+                                PointerId::Value(
+                                    crate::platform::pointer::PointerId {
+                                        event_sequence: sq_id
+                                    }
+                                )
+                            }).unwrap_or(PointerId::None);
 
-                        let pointer_evt = PointerEvent {
-                            id: pointer_id,
-                            pointer_type: get_pointer_type(event.get_device_tool()),
-                            pos: pos.to_dp(scale),
-                            mods: get_modifiers(event.get_state()),
-                            focus: false,
-                            count: 0,
-                            buttons: get_mouse_buttons_from_modifiers(event.get_state()),
-                            button: MouseButton::None,
-                            pressure: 0f64,
-                            wheel_delta: Vec2::ZERO,
-                        };
+                            let pointer_evt = PointerEvent {
+                                id: pointer_id,
+                                pointer_type: get_pointer_type(event.get_device_tool()),
+                                pos: pos.to_dp(scale),
+                                mods: get_modifiers(event.get_state()),
+                                focus: false,
+                                count: 0,
+                                buttons: get_mouse_buttons_from_modifiers(event.get_state()),
+                                button: MouseButton::None,
+                                pressure: 0f64,
+                                wheel_delta: Vec2::ZERO,
+                            };
 
-                        match event.get_event_type() {
-                            gdk::EventType::TouchBegin => { handler.pointer_down(&pointer_evt); }
-                            gdk::EventType::TouchEnd => { handler.pointer_up(&pointer_evt); }
-                            gdk::EventType::TouchUpdate => { handler.pointer_move(&pointer_evt); }
-                            _ => {}
-                        }
-                    });
+                            match event.get_event_type() {
+                                gdk::EventType::TouchBegin => { handler.pointer_down(&pointer_evt); }
+                                gdk::EventType::TouchEnd => { handler.pointer_up(&pointer_evt); }
+                                gdk::EventType::TouchUpdate => { handler.pointer_move(&pointer_evt); }
+                                _ => {}
+                            }
+                        });
+                    }
                 }
-            }
-            Inhibit(true)
-        }));
+                Inhibit(true)
+            }));
+        }
 
         win_state
             .drawing_area
