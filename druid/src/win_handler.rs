@@ -29,6 +29,7 @@ use crate::shell::{
 use crate::app_delegate::{AppDelegate, DelegateCtx};
 use crate::core::CommandQueue;
 use crate::ext_event::{ExtEventHost, ExtEventSink};
+use crate::gesture::GestureRecognizer;
 use crate::menu::ContextMenu;
 use crate::window::Window;
 use crate::{
@@ -56,6 +57,8 @@ pub struct DruidHandler<T> {
     app_state: AppState<T>,
     /// The id for the current window.
     window_id: WindowId,
+    /// The Gesture Recognizer (optional)
+    gesture_recognizer: Option<Box<dyn GestureRecognizer>>
 }
 
 /// The top level event handler.
@@ -470,10 +473,19 @@ impl<T: Data> Inner<T> {
 impl<T: Data> DruidHandler<T> {
     /// Note: the root widget doesn't go in here, because it gets added to the
     /// app state.
-    pub(crate) fn new_shared(app_state: AppState<T>, window_id: WindowId) -> DruidHandler<T> {
+    pub(crate) fn new_shared(app_state: AppState<T>, window_id: WindowId, gesture_recognizer: Option<Box<dyn GestureRecognizer>>) -> DruidHandler<T> {
         DruidHandler {
             app_state,
             window_id,
+            gesture_recognizer,
+        }
+    }
+
+    fn trigger_gesture_recognizer(&mut self, event: &Event) {
+        if let Some(r) = &mut self.gesture_recognizer {
+            for e in r.process_event(&event) {
+                self.app_state.do_window_event(e, self.window_id);
+            }
         }
     }
 }
@@ -759,7 +771,7 @@ impl<T: Data> AppState<T> {
             builder.set_menu(menu);
         }
 
-        let handler = DruidHandler::new_shared((*self).clone(), id);
+        let handler = DruidHandler::new_shared((*self).clone(), id, config.gesture_recognizer);
         builder.set_handler(Box::new(handler));
 
         self.add_window(id, pending);
@@ -844,17 +856,20 @@ impl<T: Data> WinHandler for DruidHandler<T> {
 
     fn pointer_down(&mut self, event: &PointerEvent) {
         let event = Event::PointerDown(event.clone().into());
-        self.app_state.do_window_event(event, self.window_id);
+        self.app_state.do_window_event(event.clone(), self.window_id);
+        self.trigger_gesture_recognizer(&event);
     }
 
     fn pointer_up(&mut self, event: &PointerEvent) {
         let event = Event::PointerUp(event.clone().into());
-        self.app_state.do_window_event(event, self.window_id);
+        self.app_state.do_window_event(event.clone(), self.window_id);
+        self.trigger_gesture_recognizer(&event);
     }
 
     fn pointer_move(&mut self, event: &PointerEvent) {
         let event = Event::PointerMove(event.clone().into());
-        self.app_state.do_window_event(event, self.window_id);
+        self.app_state.do_window_event(event.clone(), self.window_id);
+        self.trigger_gesture_recognizer(&event);
     }
 
     fn gesture_zoom(&mut self, zoom: f64, center: Point) {

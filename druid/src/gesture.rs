@@ -19,8 +19,11 @@ use std::collections::{VecDeque, HashMap};
 
 use crate::kurbo::Point;
 
-use crate::widget::{Widget, Controller};
-use crate::{Env, Event, EventCtx, PointerEvent, PointerId};
+use crate::{Event, PointerEvent, PointerId};
+
+pub trait GestureRecognizer {
+    fn process_event(&mut self, event: &Event) -> VecDeque<Event>;
+}
 
 #[derive(Debug, Clone, PartialEq)]
 struct TwoFingersGesture {
@@ -43,7 +46,7 @@ impl TwoFingersGesture {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum GestureControllerState {
+enum GestureRecognizerState {
     Idle,
     //OneFingerIdle,
     //OneFingerPressed,
@@ -59,8 +62,8 @@ const PINCH_ZOOM_GAIN: f64 = 1f64;
 //const ZOOM_DELTA_MAX_TRESHOLD: f64 = 0.001;
 
 /// Implements the state machine for recognizing gestures
-pub struct GestureController {
-    state: GestureControllerState,
+pub struct DruidGestureRecognizer {
+    state: GestureRecognizerState,
     pointers_track: HashMap<PointerId, VecDeque<Event>>,
 }
 
@@ -86,11 +89,11 @@ fn compute_zoom_level(finger_one_pos: Point, finger_two_pos: Point, gesture_stat
     (current_distance / initial_distance)  * PINCH_ZOOM_GAIN
 }
 
-impl GestureController {
+impl DruidGestureRecognizer {
     /// Creates a new gesture recognition state machine
     pub fn new() -> Self {
-        GestureController {
-            state: GestureControllerState::Idle,
+        DruidGestureRecognizer {
+            state: GestureRecognizerState::Idle,
             pointers_track: HashMap::new(),
         }
     }
@@ -121,12 +124,11 @@ impl GestureController {
             None
         }
     }
-}
 
-impl<T, W: Widget<T>> Controller<T, W> for GestureController {
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
+    /// Returns true if pointers have been added or removed
+    fn update_pointers(&mut self, event: &Event) -> bool {
         let mut pointers_changed = false;
-        let process_event = match &event {
+        match event {
             Event::PointerDown(pointer_event) => {
                 if let Some(queue) = self.pointers_track.get_mut(&pointer_event.id) {
                     queue.push_back(event.clone());
@@ -136,42 +138,41 @@ impl<T, W: Widget<T>> Controller<T, W> for GestureController {
                     queue.push_back(event.clone());
                     self.pointers_track.insert(pointer_event.id.clone(), queue);
                 }
-                true
             },
             Event::PointerMove(pointer_event) => {
                 if let Some(queue) = self.pointers_track.get_mut(&pointer_event.id) {
                     queue.push_back(event.clone());
                 }
                 // discard eventual PointerMove with no previous PointerDown
-                true
             },
             Event::PointerUp(pointer_event) | Event::PointerLeave(pointer_event) => {
                 self.pointers_track.remove(&pointer_event.id);
                 pointers_changed = true;
-                true
             }
-            _ => {
-                false
-            }
+            _ => {}
         };
-        if !process_event {
-            child.event(ctx, event, data, env);
-            return;
-        }
+
+        pointers_changed
+    }
+}
+
+impl GestureRecognizer for DruidGestureRecognizer {
+    fn process_event(&mut self, event: &Event) -> VecDeque<Event> {
+        let pointers_changed = self.update_pointers(&event);
 
         let new_state = match &self.state {
-            GestureControllerState::Idle => {
+            GestureRecognizerState::Idle => {
                 if self.pointers_track.len() == 2 {
-                    GestureControllerState::TwoFingersIdle(
+                    GestureRecognizerState::TwoFingersIdle(
                         self.get_current_twofinger_gesture()
                     )                    
                 } else {
                     self.state.clone()
                 }
             },
-            GestureControllerState::TwoFingersIdle(gesture_state) => {
+            GestureRecognizerState::TwoFingersIdle(gesture_state) => {
                 if pointers_changed {
-                    GestureControllerState::Idle
+                    GestureRecognizerState::Idle
                 } else {
                     let finger_one_current_pos = self.pointer_pos(&gesture_state.finger_one_id);
                     let finger_two_current_pos = self.pointer_pos(&gesture_state.finger_two_id);
@@ -181,15 +182,15 @@ impl<T, W: Widget<T>> Controller<T, W> for GestureController {
                         gesture_state.finger_two_pos.distance(finger_two_current_pos.unwrap());
                     if finger_one_distance.abs() > TWOFINGERS_MIN_PINCH_TRESHOLD ||
                        finger_two_distance.abs() > TWOFINGERS_MIN_PINCH_TRESHOLD {  
-                        GestureControllerState::PinchPanGesture(gesture_state.clone())
+                        GestureRecognizerState::PinchPanGesture(gesture_state.clone())
                     } else {
                         self.state.clone()
                     }
                 }
             },
-            GestureControllerState::PinchPanGesture(gesture_state) => {
+            GestureRecognizerState::PinchPanGesture(gesture_state) => {
                 if pointers_changed {
-                    GestureControllerState::Idle
+                    GestureRecognizerState::Idle
                 } else {
                     let finger_one_current_pos = self.pointer_pos(&gesture_state.finger_one_id);
                     let finger_two_current_pos = self.pointer_pos(&gesture_state.finger_two_id);
@@ -201,14 +202,15 @@ impl<T, W: Widget<T>> Controller<T, W> for GestureController {
                         &gesture_state);
                     new_state.finger_one_pos_cur = finger_one_current_pos.unwrap();
                     new_state.finger_two_pos_cur = finger_two_current_pos.unwrap();
-                    GestureControllerState::PinchPanGesture(new_state)
+                    GestureRecognizerState::PinchPanGesture(new_state)
                 }
             },
         };
 
+        let mut gesture_events = VecDeque::<Event>::new();
         match (&self.state, &new_state) {
-            (GestureControllerState::PinchPanGesture(previous_state),
-             GestureControllerState::PinchPanGesture(gesture_state)) => {
+            (GestureRecognizerState::PinchPanGesture(previous_state),
+             GestureRecognizerState::PinchPanGesture(gesture_state)) => {
                  let zoom_event = Event::GestureZoom {
                      zoom: gesture_state.zoom - previous_state.zoom,
                      center: gesture_state.center(),
@@ -216,15 +218,18 @@ impl<T, W: Widget<T>> Controller<T, W> for GestureController {
                  let pan_event = Event::GesturePan(
                      previous_state.center().to_vec2() -  gesture_state.center().to_vec2()
                  );
-                 child.event(ctx, &pan_event, data, env);
-                 child.event(ctx, &zoom_event, data, env);
+
+                 gesture_events.push_back(pan_event);
+                 gesture_events.push_back(zoom_event);
             },
             _ => {}
         }
 
         if self.state != new_state {
-            //log::debug!("New Recognizer State: {:?}", new_state);
+            log::debug!("New Recognizer State: {:?}", new_state);
         }
         self.state = new_state;
+
+        gesture_events
     }
 }
