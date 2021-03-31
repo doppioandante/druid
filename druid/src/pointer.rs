@@ -33,6 +33,10 @@ pub struct PointerEvent {
     pub pos: Point,
     /// Keyboard modifiers at the time of the event.
     pub mods: Modifiers,
+
+    /// Focus is `true` on macOS when the mouse-down event (or its companion mouse-up event)
+    /// with `MouseButton::Left` was the event that caused the window to gain focus.
+    /// See [`MouseEvent`]
     pub focus: bool,
     /// The type of the device that generated this event
     pub pointer_type: PointerType,
@@ -165,94 +169,3 @@ impl Data for Cursor {
     }
 }
 
-/*
-#[derive(Debug, Clone, Copy)]
-pub enum PointerEventPolicy {
-    UsePointerApi,
-    UseMouseApi,
-    UseMixedApi,
-}
-
-#[derive(Debug, Clone)]
-pub struct PointerEventController {
-    policy: PointerEventPolicy
-}
-
-fn pointer_to_mouse(event: &PointerEvent) -> MouseEvent {
-    MouseEvent {
-        pos: event.pos,
-        window_pos: event.pos,
-        buttons: event.buttons,
-        mods: event.mods,
-        count: event.count,
-        focus: event.focus,
-        button: event.button,
-        wheel_delta: event.wheel_delta,        
-    }
-}
-
-impl PointerEventController {
-    pub fn new(policy: PointerEventPolicy) -> Self {
-        PointerEventController {
-            policy
-        }
-    }
-
-    pub fn set_policy(&mut self, policy: PointerEventPolicy) {
-        self.policy = policy;
-    }
-
-    pub fn policy(&self) -> PointerEventPolicy {
-        self.policy
-    }
-
-    fn to_mouse_event<T, W: Widget<T>>(&self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        let new_event = match event {
-            Event::PointerEnter(_) => None,
-            Event::PointerDown(pt_event) => {
-                let mut mouse_evt = pointer_to_mouse(pt_event);
-                mouse_evt.buttons.clear();
-                mouse_evt.buttons.insert(MouseButton::Left);
-                mouse_evt.button = MouseButton::Left;
-                Some(Event::MouseDown(mouse_evt))
-            }
-            Event::PointerUp(pt_event) => {
-                let mut mouse_evt = pointer_to_mouse(pt_event);
-                mouse_evt.buttons.clear();  
-                mouse_evt.buttons.insert(MouseButton::Left);
-                mouse_evt.button = MouseButton::Left;
-                Some(Event::MouseUp(mouse_evt))
-            }
-            Event::PointerMove(pt_event) => {
-                let mut mouse_evt = pointer_to_mouse(pt_event);
-                mouse_evt.buttons.clear();
-                mouse_evt.buttons.insert(MouseButton::Left);
-                mouse_evt.button = MouseButton::None;
-                Some(Event::MouseMove(mouse_evt))
-            }
-            _ => Some(event.clone())
-        };
-        new_event.map(|evt| {
-            if let Event::MouseUp(mouse_evt) = &evt {
-                log::debug!("test: {:#?}", &mouse_evt);
-            }
-            child.event(ctx, &evt, data, env);
-        });
-    }
-}
-
-impl<T, W: Widget<T>> Controller<T, W> for PointerEventController {
-    fn event(&mut self, child: &mut W, ctx: &mut EventCtx, event: &Event, data: &mut T, env: &Env) {
-        match self.policy {
-            PointerEventPolicy::UseMixedApi => {
-                child.event(ctx, event, data, env);
-            }
-            PointerEventPolicy::UseMouseApi => {
-                self.to_mouse_event(child, ctx, event, data, env);
-            }
-            PointerEventPolicy::UsePointerApi => {
-                child.event(ctx, event, data, env);
-            }
-        }
-    }
-}*/

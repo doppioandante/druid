@@ -74,7 +74,7 @@ pub use region::Region;
 pub use scale::{Scalable, Scale, ScaledArea};
 pub use screen::{Monitor, Screen};
 pub use window::{
-    FileDialogToken, IdleHandle, IdleToken, TimerToken, WinHandler, WindowBuilder, WindowHandle,
+    FileDialogToken, IdleHandle, IdleToken, PointerEventPolicy, TimerToken, WinHandler, WindowBuilder, WindowHandle,
     WindowLevel, WindowState,
 };
 
