@@ -15,6 +15,7 @@
 //! Window building and app lifecycle.
 
 use crate::ext_event::{ExtEventHost, ExtEventSink};
+use crate::gesture::GestureRecognizer;
 use crate::kurbo::{Point, Size};
 use crate::shell::{Application, Error as PlatformError, PointerEventPolicy, WindowBuilder, WindowHandle, WindowLevel};
 use crate::widget::LabelText;
@@ -48,6 +49,7 @@ pub struct WindowConfig {
     pub(crate) level: Option<WindowLevel>,
     pub(crate) state: Option<WindowState>,
     pub(crate) pointer_event_policy: Option<PointerEventPolicy>,
+    pub(crate) gesture_recognizer: Option<Box<dyn GestureRecognizer>>,
 }
 
 /// A description of a window to be instantiated.
@@ -197,6 +199,7 @@ impl Default for WindowConfig {
             level: None,
             state: None,
             pointer_event_policy: None,
+            gesture_recognizer: None,
         }
     }
 }
@@ -279,6 +282,12 @@ impl WindowConfig {
     /// Sets the [`PointerEventPolicy`] for the window
     pub fn set_pointer_event_policy(mut self, policy: PointerEventPolicy) -> Self {
         self.pointer_event_policy = Some(policy);
+        self
+    }
+
+    /// Sets the [`GestureRecognizer`] for the window
+    pub fn set_gesture_recognizer(mut self, recognizer: Box<dyn GestureRecognizer>) -> Self {
+        self.gesture_recognizer = Some(recognizer);
         self
     }
 
@@ -448,6 +457,12 @@ impl<T: Data> WindowDesc<T> {
     /// Sets the [`PointerEventPolicy`] for the window
     pub fn set_pointer_event_policy(mut self, policy: PointerEventPolicy) -> Self {
         self.config = self.config.set_pointer_event_policy(policy);
+        self
+    }
+
+    /// Sets the [`GestureRecognizer`] for the window
+    pub fn set_gesture_recognizer(mut self, recognizer: Box<dyn GestureRecognizer>) -> Self {
+        self.config = self.config.set_gesture_recognizer(recognizer);
         self
     }
 
